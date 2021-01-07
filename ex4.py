@@ -144,7 +144,10 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    return
+    sorted_list = sorted(words_list)
+    indices = list(range(len(words_list)))
+    mapping = dict(zip(sorted_list, indices))
+    return mapping
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):

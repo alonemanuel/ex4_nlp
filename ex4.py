@@ -1,14 +1,12 @@
+import os
+import pickle
+
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import numpy as np
-import os
-from torch.utils.data import DataLoader, TensorDataset, Dataset
-import operator
+from torch.utils.data import DataLoader, Dataset
+
 import data_loader
-import pickle
-import tqdm
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -146,7 +144,10 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    return
+    sorted_list = sorted(words_list)
+    indices = list(range(len(words_list)))
+    mapping = dict(zip(sorted_list, indices))
+    return mapping
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
@@ -193,7 +194,8 @@ class DataManager():
     evaluation.
     """
 
-    def __init__(self, data_type=ONEHOT_AVERAGE, use_sub_phrases=True, dataset_path="stanfordSentimentTreebank", batch_size=50,
+    def __init__(self, data_type=ONEHOT_AVERAGE, use_sub_phrases=True, dataset_path="stanfordSentimentTreebank",
+                 batch_size=50,
                  embedding_dim=None):
         """
         builds the data manager used for training and evaluation.
@@ -264,14 +266,13 @@ class DataManager():
         return self.torch_datasets[TRAIN][0][0].shape
 
 
-
-
 # ------------------------------------ Models ----------------------------------------------------
 
 class LSTM(nn.Module):
     """
     An LSTM for sentiment analysis with architecture as described in the exercise description.
     """
+
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
         return
 
@@ -286,8 +287,9 @@ class LogLinear(nn.Module):
     """
     general class for the log-linear models for sentiment analysis.
     """
+
     def __init__(self, embedding_dim):
-        return
+        self._embedding_dim = embedding_dim
 
     def forward(self, x):
         return
@@ -307,8 +309,10 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-
-    return
+    n_correct = np.sum(preds == y)
+    n_examples = len(preds)
+    accuracy = n_correct / n_examples
+    return accuracy
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):

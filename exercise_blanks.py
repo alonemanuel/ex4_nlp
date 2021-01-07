@@ -146,7 +146,7 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    return
+    words_set = set(words_list)
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
@@ -287,13 +287,14 @@ class LogLinear(nn.Module):
     general class for the log-linear models for sentiment analysis.
     """
     def __init__(self, embedding_dim):
-        return
+        super().__init__()
+        self.linear = torch.nn.Linear(embedding_dim, 1)
 
     def forward(self, x):
-        return
+        return self.linear(x)
 
     def predict(self, x):
-        return
+        return 1 if self.forward(x) >0.6 else 0
 
 
 # ------------------------- training functions -------------
@@ -307,7 +308,6 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-
     return
 
 
@@ -320,6 +320,24 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
+    epoch_loss = 0
+    epoch_acc = 0
+    for X_batch,Y_batch in data_iterator:
+        X_batch, Y_batch = X_batch.to(get_available_device()), Y_batch.to(get_available_device())
+        optimizer.zero_grad()
+
+        Y_pred = model(X_batch)
+
+        loss = criterion(Y_pred, Y_batch.unsqueeze(1))
+        acc = binary_accuracy(Y_pred, Y_batch.unsqueeze(1))
+
+        loss.backward()
+        optimizer.step()
+
+        epoch_loss += loss.item()
+        epoch_acc += acc.item()
+
+    return epoch_acc, epoch_loss
 
     return
 
@@ -358,6 +376,13 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
+
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = nn.BCEWithLogitsLoss()
+    model.train()
+    for epoch in range(n_epochs):
+        acc, loss = train_epoch(model,data_manager.get_torch_iterator(), optimizer, criterion)
+        print(f'Epoch {epoch+0:03}: | Loss: {loss:.5f} | Acc: {acc:.3f}')
     return
 
 

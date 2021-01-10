@@ -10,6 +10,10 @@ from torch.utils.data import DataLoader, Dataset
 import data_loader
 
 # ------------------------------------------- Constants ----------------------------------------
+DEFAULT_WEIGHT_DECAY = 0.0001
+DEFAULT_BATCH_SIZE = 64
+DEFAULT_N_EPOCHS = 20
+DEFAULT_LEARNING_RATE = 0.01
 
 SEQ_LEN = 52
 W2V_EMBEDDING_DIM = 300
@@ -400,7 +404,10 @@ def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    return
+    lr = DEFAULT_LEARNING_RATE
+    n_epochs = DEFAULT_N_EPOCHS
+    batch_size = DEFAULT_BATCH_SIZE
+    weight_decay = DEFAULT_WEIGHT_DECAY
 
 
 def train_log_linear_with_w2v():

@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
 import data_loader
@@ -289,13 +290,14 @@ class LogLinear(nn.Module):
     """
 
     def __init__(self, embedding_dim):
-        self._embedding_dim = embedding_dim
+        super().__init__()
+        self.linear = torch.nn.Linear(embedding_dim, 1)
 
     def forward(self, x):
-        return
+        return self.linear(x)
 
     def predict(self, x):
-        return
+        return 1 if self.forward(x) > 0.6 else 0
 
 
 # ------------------------- training functions -------------
@@ -325,7 +327,24 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param criterion: the criterion object for the training process.
     """
 
-    return
+    epoch_loss = 0
+    epoch_acc = 0
+    for X_batch, Y_batch in data_iterator:
+        X_batch, Y_batch = X_batch.to(get_available_device()), Y_batch.to(get_available_device())
+        optimizer.zero_grad()
+
+        Y_pred = model(X_batch)
+
+        loss = criterion(Y_pred, Y_batch.unsqueeze(1))
+        acc = binary_accuracy(Y_pred, Y_batch.unsqueeze(1))
+
+        loss.backward()
+        optimizer.step()
+
+        epoch_loss += loss.item()
+        epoch_acc += acc.item()
+
+    return epoch_acc, epoch_loss
 
 
 def evaluate(model, data_iterator, criterion):
@@ -362,6 +381,12 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = nn.BCEWithLogitsLoss()
+    model.train()
+    for epoch in range(n_epochs):
+        acc, loss = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
+        print(f'Epoch {epoch + 0:03}: | Loss: {loss:.5f} | Acc: {acc:.3f}')
     return
 
 

@@ -339,8 +339,6 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
     return epoch_acc, epoch_loss
 
-    return
-
 
 def evaluate(model, data_iterator, criterion):
     """

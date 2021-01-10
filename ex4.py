@@ -114,7 +114,13 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    sum_vec = np.zeros(embedding_dim)
+    for curr_word in sent:
+        curr_word_vec = word_to_vec[curr_word]
+        sum_vec += curr_word_vec
+    n_words = len(sent)
+    avg_sum_vec = sum_vec / n_words
+    return avg_sum_vec
 
 
 def get_one_hot(size, ind):

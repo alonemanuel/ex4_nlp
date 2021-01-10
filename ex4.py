@@ -408,6 +408,22 @@ def train_log_linear_with_one_hot():
     n_epochs = DEFAULT_N_EPOCHS
     batch_size = DEFAULT_BATCH_SIZE
     weight_decay = DEFAULT_WEIGHT_DECAY
+    # todo: where do I get the embedding dim for the model?
+    embedding_dim = None
+    loglinear_model = LogLinear(embedding_dim)
+    # todo: should I set use_subphrases to True?
+    # todo: what about batch_size? should I change the default?
+    # todo: and embedding dim? is it the same as the one provided for the model?
+    onehot_data_manager = DataManager(data_type=ONEHOT_AVERAGE,
+                                      use_sub_phrases=True,
+                                      batch_size=batch_size,
+                                      embedding_dim=embedding_dim)
+    train_model(model=loglinear_model,
+                data_manager=onehot_data_manager,
+                n_epochs=n_epochs,
+                lr=lr,
+                weight_decay=weight_decay)
+    # todo: provide graphs and evaluation
 
 
 def train_log_linear_with_w2v():

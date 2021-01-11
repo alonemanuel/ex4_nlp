@@ -125,7 +125,9 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    return np.array([x == ind for x in range(size)]).astype(int)
+    one_hot = torch.zeros(size, dtype=torch.float)
+    one_hot[ind] = 1
+    return one_hot
 
 
 def average_one_hots(sent, word_to_ind):
@@ -137,8 +139,8 @@ def average_one_hots(sent, word_to_ind):
     :return:
     """
     n_words = len(word_to_ind)
-    sent_one_hots = [get_one_hot(n_words, word_to_ind[word]) for word in sent.text]
-    return np.mean(sent_one_hots, axis=0)
+    sent_one_hots = torch.stack([get_one_hot(n_words, word_to_ind[word]) for word in sent.text])
+    return torch.mean(sent_one_hots, axis=0)
 
 
 def get_word_to_ind(words_list):
@@ -323,9 +325,11 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
+    n_iters = 0
     epoch_loss = 0
     epoch_acc = 0
-    for x_batch,y_batch in data_iterator:
+    for x_batch, y_batch in data_iterator:
+        n_iters += 1
         x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
         optimizer.zero_grad()
 
@@ -338,7 +342,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         epoch_loss += loss.item()
         epoch_acc += acc
 
-    return epoch_loss, epoch_acc
+    return epoch_loss / n_iters, epoch_acc / n_iters
 
 
 def evaluate(model, data_iterator, criterion):
@@ -396,8 +400,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     train_accs = []
     valid_losses = []
     valid_accs = []
-    model.train()
     for epoch in range(n_epochs):
+        model.train()
         train_loss, train_acc = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
         valid_loss, valid_acc = evaluate(model, data_manager.get_torch_iterator(TEST), criterion)
         train_losses.append(train_loss)
@@ -415,7 +419,7 @@ def train_log_linear_with_one_hot():
     """
     data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
-    train_model(model, data_manager, 1, 0.01, weight_decay=0.0001)
+    train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
     return
 
 

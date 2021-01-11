@@ -125,7 +125,7 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    return
+    return np.array([x == ind for x in range(size)]).astype(int)
 
 
 def average_one_hots(sent, word_to_ind):
@@ -136,7 +136,8 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    return
+    sent_one_hots = [word_to_ind(word) for word in sent]
+    return np.mean(sent_one_hots, axis=0)
 
 
 def get_word_to_ind(words_list):
@@ -146,7 +147,7 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    words_set = set(words_list)
+    return {word:idx for idx,word in enumerate(words_list)}
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
@@ -352,11 +353,11 @@ def evaluate(model, data_iterator, criterion):
     total_loss = 0
     total_acc = 0
     for x_batch, y_batch in data_iterator:
-        n_iters+=1
+        n_iters += 1
         y_pred = model(x_batch)
         total_loss += criterion(y_pred, y_batch.unsqueeze(1))
         total_acc += binary_accuracy(y_pred, y_batch.unsqueeze(1))
-    return (total_loss/n_iters, total_acc/n_iters)
+    return total_loss / n_iters, total_acc / n_iters
 
 
 def get_predictions_for_data(model, data_iter):
@@ -400,6 +401,7 @@ def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
+    model = LogLinear()
     return
 
 

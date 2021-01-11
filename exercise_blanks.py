@@ -308,7 +308,7 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    return
+    return np.sum(preds==y)/len(preds)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -361,7 +361,11 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    return
+    total_pred = np.array()
+    for x_batch, y_batch in data_iter:
+        y_pred = model(x_batch)
+        np.append(total_pred, y_pred)
+    return total_pred
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):

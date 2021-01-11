@@ -353,6 +353,7 @@ def evaluate(model, data_iterator, criterion):
     total_loss = 0
     total_acc = 0
     for x_batch, y_batch in data_iterator:
+        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
         n_iters += 1
         y_pred = model(x_batch)
         total_loss += criterion(y_pred, y_batch.unsqueeze(1))
@@ -390,22 +391,31 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
+
+    train_losses = []
+    train_accs = []
+    valid_losses = []
+    valid_accs = []
     model.train()
     for epoch in range(n_epochs):
         train_loss, train_acc = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
-        valid_loss, valid_acc  = evaluate(model, data_manager.get_torch_iterator(TEST), criterion)
-        print(f'Epoch {epoch+0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}')
-        print(f'Epoch {epoch+0:03}: | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
-    return
+        valid_loss, valid_acc = evaluate(model, data_manager.get_torch_iterator(TEST), criterion)
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
+        valid_losses.append(valid_loss)
+        valid_accs.append(valid_acc)
+        print(f'Epoch {epoch + 0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}')
+        print(f'Epoch {epoch + 0:03}: | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
+    return train_losses, train_accs, valid_losses, valid_accs
 
 
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    data_manager = DataManager()
+    data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
-    train_model(model, data_manager, 1, 0.5)
+    train_model(model, data_manager, 1, 0.01, weight_decay=0.0001)
     return
 
 

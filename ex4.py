@@ -4,11 +4,16 @@ import pickle
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
 import data_loader
 
 # ------------------------------------------- Constants ----------------------------------------
+DEFAULT_WEIGHT_DECAY = 0.0001
+DEFAULT_BATCH_SIZE = 64
+DEFAULT_N_EPOCHS = 20
+DEFAULT_LEARNING_RATE = 0.01
 
 SEQ_LEN = 52
 W2V_EMBEDDING_DIM = 300
@@ -113,7 +118,13 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    sum_vec = np.zeros(embedding_dim)
+    for curr_word in sent:
+        curr_word_vec = word_to_vec[curr_word]
+        sum_vec += curr_word_vec
+    n_words = len(sent)
+    avg_sum_vec = sum_vec / n_words
+    return avg_sum_vec
 
 
 def get_one_hot(size, ind):
@@ -289,13 +300,14 @@ class LogLinear(nn.Module):
     """
 
     def __init__(self, embedding_dim):
-        self._embedding_dim = embedding_dim
+        super().__init__()
+        self.linear = torch.nn.Linear(embedding_dim, 1)
 
     def forward(self, x):
-        return
+        return self.linear(x)
 
     def predict(self, x):
-        return
+        return 1 if self.forward(x) > 0.6 else 0
 
 
 # ------------------------- training functions -------------
@@ -325,7 +337,24 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param criterion: the criterion object for the training process.
     """
 
-    return
+    epoch_loss = 0
+    epoch_acc = 0
+    for X_batch, Y_batch in data_iterator:
+        X_batch, Y_batch = X_batch.to(get_available_device()), Y_batch.to(get_available_device())
+        optimizer.zero_grad()
+
+        Y_pred = model(X_batch)
+
+        loss = criterion(Y_pred, Y_batch.unsqueeze(1))
+        acc = binary_accuracy(Y_pred, Y_batch.unsqueeze(1))
+
+        loss.backward()
+        optimizer.step()
+
+        epoch_loss += loss.item()
+        epoch_acc += acc.item()
+
+    return epoch_acc, epoch_loss
 
 
 def evaluate(model, data_iterator, criterion):
@@ -362,6 +391,12 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = nn.BCEWithLogitsLoss()
+    model.train()
+    for epoch in range(n_epochs):
+        acc, loss = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
+        print(f'Epoch {epoch + 0:03}: | Loss: {loss:.5f} | Acc: {acc:.3f}')
     return
 
 
@@ -369,7 +404,10 @@ def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    return
+    lr = DEFAULT_LEARNING_RATE
+    n_epochs = DEFAULT_N_EPOCHS
+    batch_size = DEFAULT_BATCH_SIZE
+    weight_decay = DEFAULT_WEIGHT_DECAY
 
 
 def train_log_linear_with_w2v():

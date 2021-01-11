@@ -322,14 +322,14 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     """
     epoch_loss = 0
     epoch_acc = 0
-    for X_batch,Y_batch in data_iterator:
-        X_batch, Y_batch = X_batch.to(get_available_device()), Y_batch.to(get_available_device())
+    for x_batch,y_batch in data_iterator:
+        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
         optimizer.zero_grad()
 
-        Y_pred = model(X_batch)
+        y_pred = model(x_batch)
 
-        loss = criterion(Y_pred, Y_batch.unsqueeze(1))
-        acc = binary_accuracy(Y_pred, Y_batch.unsqueeze(1))
+        loss = criterion(y_pred, y_batch.unsqueeze(1))
+        acc = binary_accuracy(y_pred, y_batch.unsqueeze(1))
 
         loss.backward()
         optimizer.step()
@@ -348,7 +348,15 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    return
+    n_iters = 0
+    total_loss = 0
+    total_acc = 0
+    for x_batch, y_batch in data_iterator:
+        n_iters+=1
+        y_pred = model(x_batch)
+        total_loss += criterion(y_pred, y_batch.unsqueeze(1))
+        total_acc += binary_accuracy(y_pred, y_batch.unsqueeze(1))
+    return (total_loss/n_iters, total_acc/n_iters)
 
 
 def get_predictions_for_data(model, data_iter):

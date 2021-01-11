@@ -136,7 +136,8 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    sent_one_hots = [word_to_ind(word) for word in sent]
+    n_words = len(word_to_ind)
+    sent_one_hots = [get_one_hot(n_words, word_to_ind[word]) for word in sent.text]
     return np.mean(sent_one_hots, axis=0)
 
 
@@ -291,11 +292,12 @@ class LogLinear(nn.Module):
         super().__init__()
         self.linear = torch.nn.Linear(embedding_dim, 1)
 
+
     def forward(self, x):
-        return self.linear(x)
+        return self.linear(x.float())
 
     def predict(self, x):
-        return 1 if self.forward(x) >0.6 else 0
+        return (self.forward(x) > 0.6).float()
 
 
 # ------------------------- training functions -------------
@@ -309,7 +311,7 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    return np.sum(preds==y)/len(preds)
+    return ((preds==y).sum()/len(preds)).item()
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -327,18 +329,16 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
         optimizer.zero_grad()
 
-        y_pred = model(x_batch)
-
-        loss = criterion(y_pred, y_batch.unsqueeze(1))
-        acc = binary_accuracy(y_pred, y_batch.unsqueeze(1))
+        loss = criterion(model(x_batch), y_batch.unsqueeze(1))
+        acc = binary_accuracy(model.predict(x_batch), y_batch.unsqueeze(1))
 
         loss.backward()
         optimizer.step()
 
         epoch_loss += loss.item()
-        epoch_acc += acc.item()
+        epoch_acc += acc
 
-    return epoch_acc, epoch_loss
+    return epoch_loss, epoch_acc
 
 
 def evaluate(model, data_iterator, criterion):
@@ -392,8 +392,10 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     criterion = nn.BCEWithLogitsLoss()
     model.train()
     for epoch in range(n_epochs):
-        acc, loss = train_epoch(model,data_manager.get_torch_iterator(), optimizer, criterion)
-        print(f'Epoch {epoch+0:03}: | Loss: {loss:.5f} | Acc: {acc:.3f}')
+        train_loss, train_acc = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
+        valid_loss, valid_acc  = evaluate(model, data_manager.get_torch_iterator(TEST), criterion)
+        print(f'Epoch {epoch+0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}')
+        print(f'Epoch {epoch+0:03}: | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
     return
 
 
@@ -401,7 +403,9 @@ def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    model = LogLinear()
+    data_manager = DataManager()
+    model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
+    train_model(model, data_manager, 1, 0.5)
     return
 
 

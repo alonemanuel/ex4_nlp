@@ -8,6 +8,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
 import data_loader
+import debug_helper
 
 # ------------------------------------------- Constants ----------------------------------------
 DEFAULT_WEIGHT_DECAY = 0.0001
@@ -391,19 +392,22 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    print(f'In ##train_model##')
+    adam_optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
     model.train()
     for epoch in range(n_epochs):
-        acc, loss = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
+        acc, loss = train_epoch(model, data_manager.get_torch_iterator(), adam_optimizer, criterion)
         print(f'Epoch {epoch + 0:03}: | Loss: {loss:.5f} | Acc: {acc:.3f}')
-    return
+
+    # todo: should this return anything?
 
 
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
+    debug_helper.announce_function('train_log_linear_with_one_hot', True)
     lr = DEFAULT_LEARNING_RATE
     n_epochs = DEFAULT_N_EPOCHS
     batch_size = DEFAULT_BATCH_SIZE

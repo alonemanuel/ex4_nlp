@@ -88,7 +88,7 @@ def load_word2vec():
     return wv_from_bin
 
 
-def create_or_load_slim_w2v(words_list, cache_w2v=False):
+def create_or_load_slim_w2v(words_list, cache_w2v=True):
     """
     returns word2vec dict only for words which appear in the dataset.
     :param words_list: list of words to use for the w2v dict
@@ -115,7 +115,15 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    w2v_average = np.zeros(embedding_dim, dtype=np.float)
+    n_known_words = 0
+    for word in sent.text:
+        if word in word_to_vec:
+            n_known_words += 1
+            w2v_average += word_to_vec[word]
+    if n_known_words != 0:
+        w2v_average = w2v_average/n_known_words
+    return w2v_average
 
 
 def get_one_hot(size, ind):
@@ -378,7 +386,7 @@ def get_predictions_for_data(model, data_iter):
     total_pred = np.array()
     for x_batch, y_batch in data_iter:
         y_pred = model(x_batch)
-        np.append(total_pred, y_pred)
+        total_pred = np.append(total_pred, y_pred)
     return total_pred
 
 
@@ -419,7 +427,7 @@ def train_log_linear_with_one_hot():
     """
     data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
-    train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
+    train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
     return
 
 
@@ -428,6 +436,9 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
+    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=300)
+    model = LogLinear(data_manager.get_input_shape()[0]).to(get_available_device())
+    train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
     return
 
 
@@ -439,6 +450,6 @@ def train_lstm_with_w2v():
 
 
 if __name__ == '__main__':
-    train_log_linear_with_one_hot()
-    # train_log_linear_with_w2v()
+    # train_log_linear_with_one_hot()
+    train_log_linear_with_w2v()
     # train_lstm_with_w2v()

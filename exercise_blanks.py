@@ -9,6 +9,7 @@ import operator
 import data_loader
 import pickle
 import tqdm
+import matplotlib.pyplot as plt
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -133,7 +134,7 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    one_hot = torch.zeros(size, dtype=torch.float)
+    one_hot = np.zeros(size, dtype=np.float)
     one_hot[ind] = 1
     return one_hot
 
@@ -147,8 +148,12 @@ def average_one_hots(sent, word_to_ind):
     :return:
     """
     n_words = len(word_to_ind)
-    sent_one_hots = torch.stack([get_one_hot(n_words, word_to_ind[word]) for word in sent.text])
-    return torch.mean(sent_one_hots, axis=0)
+    sent_len = len(sent.text)
+    average = np.zeros(n_words, dtype=np.float)
+    for word in sent.text:
+        average += get_one_hot(n_words, word_to_ind[word])
+    average = average/sent_len
+    return average
 
 
 def get_word_to_ind(words_list):
@@ -291,15 +296,18 @@ class LSTM(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.n_layers = n_layers
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers, dropout=dropout, bidirectional=True)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers, batch_first=True, dropout=dropout, bidirectional=True)
         self.fc = nn.Linear(hidden_dim*2, 1)
 
     def forward(self, text):
-        h0 = torch.zeros(self.n_layers*2, text.size(1), self.hidden_dim).to(get_available_device())
-        c0 = torch.zeros(self.n_layers*2, text.size(1), self.hidden_dim).to(get_available_device())
+        batch_size = text.size(0)
+        h0 = torch.zeros(self.n_layers*2, batch_size, self.hidden_dim).to(get_available_device())
+        c0 = torch.zeros(self.n_layers*2, batch_size, self.hidden_dim).to(get_available_device())
 
-        lstm_out, _ = self.lstm(text.float(), (h0, c0))
-        out = self.fc(lstm_out[:, -1, :])
+        lstm_out, (h_n, c_n) = self.lstm(text.float(), (h0, c0))
+        h_n = h_n.view(batch_size, self.n_layers, 2, self.hidden_dim)
+        h_n_concatenated = torch.cat((h_n[:,:,0,:], h_n[:,:,1,:]), -1).squeeze(1)
+        out = self.fc(h_n_concatenated)
 
         return out
 
@@ -380,9 +388,8 @@ def evaluate(model, data_iterator, criterion):
     for x_batch, y_batch in data_iterator:
         x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
         n_iters += 1
-        y_pred = model(x_batch)
-        total_loss += criterion(y_pred, y_batch.unsqueeze(1))
-        total_acc += binary_accuracy(y_pred, y_batch.unsqueeze(1))
+        total_loss += criterion(model(x_batch), y_batch.unsqueeze(1))
+        total_acc += binary_accuracy(model.predict(x_batch), y_batch.unsqueeze(1))
     return total_loss / n_iters, total_acc / n_iters
 
 
@@ -438,9 +445,11 @@ def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
+    print('training log linear with 1-hot')
     data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
+    plot(train_losses, train_accs, valid_losses, valid_accs, 'Log Linear: 1-hot')
     return
 
 
@@ -449,9 +458,11 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
+    print('training log linear with w2v')
     data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=300)
     model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
+    plot(train_losses, train_accs, valid_losses, valid_accs,  'Log Linear: w2v')
     return
 
 
@@ -459,13 +470,35 @@ def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
+    print('training LSTM with w2v')
     data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
-    model = LSTM(embedding_dim=data_manager.get_input_shape()[-1], hidden_dim=100, n_layers=10, dropout=0.5).to(get_available_device())
+    model = LSTM(embedding_dim=data_manager.get_input_shape()[-1], hidden_dim=100, n_layers=1, dropout=0.5).to(get_available_device())
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 4, 0.001, weight_decay=0.0001)
+    plot(train_losses, train_accs, valid_losses, valid_accs, 'LSTM')
     return
 
 
+def plot(train_losses, train_accs, valid_losses, valid_accs, title):
+    f, (ax1, ax2) = plt.subplots(1, 2)
+    x = [i for i in range(len(train_losses))]
+    ax1.plot(x, train_losses, label='Train')
+    ax1.plot(x, valid_losses, label='Validation')
+    ax1.set_title('Loss')
+    ax1.legend()
+    ax1.set_ylim([0,1])
+
+    ax2.plot(x, train_accs, label='Train')
+    ax2.plot(x, valid_accs, label='Validation')
+    ax2.set_title('Accuracy')
+    ax2.legend()
+    ax2.set_ylim([0,1])
+
+    f.suptitle(title)
+
+    plt.show()
+
+
 if __name__ == '__main__':
-    # train_log_linear_with_one_hot()
+    train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
-    train_lstm_with_w2v()
+    # train_lstm_with_w2v()

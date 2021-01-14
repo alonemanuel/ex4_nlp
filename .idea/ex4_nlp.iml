@@ -6,7 +6,7 @@
       <excludeFolder url="file://$MODULE_DIR$/stanfordSentimentTreebank" />
     </content>
     <content url="file://$USER_HOME$/gensim-data" />
-    <orderEntry type="jdk" jdkName="Python 3.6.1 (/Library/Frameworks/Python.framework/Versions/3.6/bin/python3.6)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.9 (ex4_nlp) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

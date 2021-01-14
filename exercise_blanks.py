@@ -305,9 +305,7 @@ class LSTM(nn.Module):
         c0 = torch.zeros(self.n_layers*2, batch_size, self.hidden_dim).to(get_available_device())
 
         lstm_out, (h_n, c_n) = self.lstm(text.float(), (h0, c0))
-        h_n = h_n.view(batch_size, self.n_layers, 2, self.hidden_dim)
-        h_n_concatenated = torch.cat((h_n[:,:,0,:], h_n[:,:,1,:]), -1).squeeze(1)
-        out = self.fc(h_n_concatenated)
+        out = self.fc(lstm_out[:,-1,:])
 
         return out
 

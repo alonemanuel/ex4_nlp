@@ -10,6 +10,8 @@ import data_loader
 import pickle
 import tqdm
 
+from operator import itemgetter
+
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-whitegrid')
 
@@ -403,11 +405,12 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    total_pred = np.array()
+    total_pred = torch.Tensor().to(get_available_device())
     for x_batch, y_batch in data_iter:
-        y_pred = model(x_batch)
-        total_pred = np.append(total_pred, y_pred)
-    return total_pred
+        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
+        y_pred = model.predict(x_batch)
+        total_pred = torch.cat((total_pred, y_pred))
+    return total_pred.cpu().detach().numpy()
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -431,7 +434,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     for epoch in range(n_epochs):
         model.train()
         train_loss, train_acc = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
-        valid_loss, valid_acc = evaluate(model, data_manager.get_torch_iterator(TEST), criterion)
+        valid_loss, valid_acc = evaluate(model, data_manager.get_torch_iterator(VAL), criterion)
         train_losses.append(train_loss)
         train_accs.append(train_acc)
         valid_losses.append(valid_loss)
@@ -439,6 +442,28 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         print(f'Epoch {epoch + 0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}')
         print(f'Epoch {epoch + 0:03}: | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
     return train_losses, train_accs, valid_losses, valid_accs
+
+
+def get_test_acc(model, data_manager, subset=None):
+    test_pred = get_predictions_for_data(model, data_manager.get_torch_iterator(TEST))
+    test_labels = data_manager.get_labels(TEST)
+    if subset == 'NEGATED':
+        negated_subset_indices = data_loader.get_negated_polarity_examples(data_manager.sentences[TEST])
+        test_pred = np.array((itemgetter(*negated_subset_indices)(test_pred)))
+        test_labels = np.array((itemgetter(*negated_subset_indices)(test_labels)))
+    elif subset == 'RARE':
+        rare_subset_indices = data_loader.get_rare_words_examples(data_manager.sentences[TEST], data_manager.sentiment_dataset)
+        test_pred = np.array((itemgetter(*rare_subset_indices)(test_pred)))
+        test_labels = np.array((itemgetter(*rare_subset_indices)(test_labels)))
+    test_acc = binary_accuracy(test_pred.flatten(), test_labels.flatten())
+    return test_acc
+
+
+def print_test_accuracies(model, data_manager):
+    test_acc = get_test_acc(model, data_manager)
+    negated_acc = get_test_acc(model, data_manager, 'NEGATED')
+    rare_acc = get_test_acc(model, data_manager, 'RARE')
+    print('test accuracy: {}\nnegated accuracy: {}\nrare accuracy: {}'.format(test_acc, negated_acc, rare_acc))
 
 
 def train_log_linear_with_one_hot():
@@ -450,6 +475,7 @@ def train_log_linear_with_one_hot():
     model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
     plot(train_losses, train_accs, valid_losses, valid_accs, 'Log Linear: 1-hot')
+    print_test_accuracies(model, data_manager)
     return
 
 
@@ -463,6 +489,7 @@ def train_log_linear_with_w2v():
     model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
     plot(train_losses, train_accs, valid_losses, valid_accs,  'Log Linear: w2v')
+    print_test_accuracies(model, data_manager)
     return
 
 
@@ -475,6 +502,7 @@ def train_lstm_with_w2v():
     model = LSTM(embedding_dim=data_manager.get_input_shape()[-1], hidden_dim=100, n_layers=1, dropout=0.5).to(get_available_device())
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 4, 0.001, weight_decay=0.0001)
     plot(train_losses, train_accs, valid_losses, valid_accs, 'LSTM')
+    print_test_accuracies(model, data_manager)
     return
 
 
@@ -496,7 +524,6 @@ def plot(train_losses, train_accs, valid_losses, valid_accs, title):
     f.suptitle(title)
 
     plt.show()
-
 
 if __name__ == '__main__':
     train_log_linear_with_one_hot()

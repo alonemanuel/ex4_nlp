@@ -330,7 +330,7 @@ class LSTM(nn.Module):
         return out
 
     def predict(self, text):
-        return (self.forward(text) > 0.6).float()
+        return np.round(self.forward(text))
 
 
 class LogLinear(nn.Module):
@@ -346,7 +346,7 @@ class LogLinear(nn.Module):
         return self.linear(x.float())
 
     def predict(self, x):
-        return (self.forward(x) > 0.6).float()
+        return np.round(self.forward(x))
 
 
 # ------------------------- training functions -------------
@@ -553,6 +553,6 @@ def plot(train_losses, train_accs, valid_losses, valid_accs, title):
 
 
 if __name__ == '__main__':
-    # train_log_linear_with_one_hot()
-    # train_log_linear_with_w2v()
+    train_log_linear_with_one_hot()
+    train_log_linear_with_w2v()
     train_lstm_with_w2v()

@@ -359,9 +359,11 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     n_iters = 0
     epoch_loss = 0
     epoch_acc = 0
+    device = get_available_device()
+    criterion = criterion.to(device)
     for x_batch, y_batch in data_iterator:
         n_iters += 1
-        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         optimizer.zero_grad()
 
         loss = criterion(model(x_batch), y_batch.unsqueeze(1))
@@ -387,8 +389,10 @@ def evaluate(model, data_iterator, criterion):
     n_iters = 0
     total_loss = 0
     total_acc = 0
+    device = get_available_device()
+    criterion = criterion.to(device)
     for x_batch, y_batch in data_iterator:
-        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         n_iters += 1
         total_loss += criterion(model(x_batch), y_batch.unsqueeze(1))
         total_acc += binary_accuracy(model.predict(x_batch), y_batch.unsqueeze(1))
@@ -473,6 +477,7 @@ def train_log_linear_with_one_hot():
     print('training log linear with 1-hot')
     data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
+    print(f'model is running on cuda? {next(model.parameters()).is_cuda}')
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
     plot(train_losses, train_accs, valid_losses, valid_accs, 'Log Linear: 1-hot')
     print_test_accuracies(model, data_manager)
@@ -529,7 +534,3 @@ if __name__ == '__main__':
     train_log_linear_with_one_hot()
     train_log_linear_with_w2v()
     train_lstm_with_w2v()
-
-
-
-#checking git and colab

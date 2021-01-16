@@ -1,21 +1,23 @@
-import os
-import pickle
-
-import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
-
+import numpy as np
+import os
+from torch.utils.data import DataLoader, TensorDataset, Dataset
+import operator
 import data_loader
+import pickle
+import tqdm
+
+from operator import itemgetter
+
+import matplotlib.pyplot as plt
+plt.style.use('seaborn-whitegrid')
 
 # ------------------------------------------- Constants ----------------------------------------
-DEFAULT_WEIGHT_DECAY = 0.0001
-DEFAULT_BATCH_SIZE = 64
-DEFAULT_N_EPOCHS = 20
-DEFAULT_LEARNING_RATE = 0.01
 
-SEQ_LEN = 52
+SEQ_LEN = 10
 W2V_EMBEDDING_DIM = 300
 
 ONEHOT_AVERAGE = "onehot_average"
@@ -91,7 +93,7 @@ def load_word2vec():
     return wv_from_bin
 
 
-def create_or_load_slim_w2v(words_list, cache_w2v=False):
+def create_or_load_slim_w2v(words_list, cache_w2v=True):
     """
     returns word2vec dict only for words which appear in the dataset.
     :param words_list: list of words to use for the w2v dict
@@ -118,13 +120,15 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    sum_vec = np.zeros(embedding_dim)
-    for curr_word in sent:
-        curr_word_vec = word_to_vec[curr_word]
-        sum_vec += curr_word_vec
-    n_words = len(sent)
-    avg_sum_vec = sum_vec / n_words
-    return avg_sum_vec
+    w2v_average = np.zeros(embedding_dim, dtype=np.float)
+    n_known_words = 0
+    for word in sent.text:
+        if word in word_to_vec:
+            n_known_words += 1
+            w2v_average += word_to_vec[word]
+    if n_known_words != 0:
+        w2v_average = w2v_average/n_known_words
+    return w2v_average
 
 
 def get_one_hot(size, ind):
@@ -134,7 +138,9 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    return
+    one_hot = np.zeros(size, dtype=np.float)
+    one_hot[ind] = 1
+    return one_hot
 
 
 def average_one_hots(sent, word_to_ind):
@@ -145,7 +151,13 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    return
+    n_words = len(word_to_ind)
+    sent_len = len(sent.text)
+    average = np.zeros(n_words, dtype=np.float)
+    for word in sent.text:
+        average += get_one_hot(n_words, word_to_ind[word])
+    average = average/sent_len
+    return average
 
 
 def get_word_to_ind(words_list):
@@ -155,10 +167,7 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    sorted_list = sorted(words_list)
-    indices = list(range(len(words_list)))
-    mapping = dict(zip(sorted_list, indices))
-    return mapping
+    return {word:idx for idx,word in enumerate(words_list)}
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
@@ -171,8 +180,11 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
-    return
-
+    sent_embedding = np.zeros((seq_len, embedding_dim), dtype=np.float)
+    for i, word in enumerate(sent.text):
+        if i < seq_len and word in word_to_vec:
+            sent_embedding[i,:] = word_to_vec[word]
+    return sent_embedding
 
 class OnlineDataset(Dataset):
     """
@@ -205,8 +217,7 @@ class DataManager():
     evaluation.
     """
 
-    def __init__(self, data_type=ONEHOT_AVERAGE, use_sub_phrases=True, dataset_path="stanfordSentimentTreebank",
-                 batch_size=50,
+    def __init__(self, data_type=ONEHOT_AVERAGE, use_sub_phrases=True, dataset_path="stanfordSentimentTreebank", batch_size=50,
                  embedding_dim=None):
         """
         builds the data manager used for training and evaluation.
@@ -277,37 +288,49 @@ class DataManager():
         return self.torch_datasets[TRAIN][0][0].shape
 
 
+
+
 # ------------------------------------ Models ----------------------------------------------------
 
 class LSTM(nn.Module):
     """
     An LSTM for sentiment analysis with architecture as described in the exercise description.
     """
-
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
-        return
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.n_layers = n_layers
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers, batch_first=True, dropout=dropout, bidirectional=True)
+        self.fc = nn.Linear(hidden_dim*2, 1)
 
     def forward(self, text):
-        return
+        batch_size = text.size(0)
+        h0 = torch.zeros(self.n_layers*2, batch_size, self.hidden_dim).to(get_available_device())
+        c0 = torch.zeros(self.n_layers*2, batch_size, self.hidden_dim).to(get_available_device())
+
+        lstm_out, (h_n, c_n) = self.lstm(text.float(), (h0, c0))
+        out = self.fc(lstm_out[:,-1,:])
+
+        return out
 
     def predict(self, text):
-        return
+        return (self.forward(text) > 0.6).float()
 
 
 class LogLinear(nn.Module):
     """
     general class for the log-linear models for sentiment analysis.
     """
-
     def __init__(self, embedding_dim):
         super().__init__()
         self.linear = torch.nn.Linear(embedding_dim, 1)
 
+
     def forward(self, x):
-        return self.linear(x)
+        return self.linear(x.float())
 
     def predict(self, x):
-        return 1 if self.forward(x) > 0.6 else 0
+        return (self.forward(x) > 0.6).float()
 
 
 # ------------------------- training functions -------------
@@ -321,10 +344,7 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    n_correct = np.sum(preds == y)
-    n_examples = len(preds)
-    accuracy = n_correct / n_examples
-    return accuracy
+    return ((preds==y).sum()/len(preds)).item()
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -336,25 +356,24 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
-
+    n_iters = 0
     epoch_loss = 0
     epoch_acc = 0
-    for X_batch, Y_batch in data_iterator:
-        X_batch, Y_batch = X_batch.to(get_available_device()), Y_batch.to(get_available_device())
+    for x_batch, y_batch in data_iterator:
+        n_iters += 1
+        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
         optimizer.zero_grad()
 
-        Y_pred = model(X_batch)
-
-        loss = criterion(Y_pred, Y_batch.unsqueeze(1))
-        acc = binary_accuracy(Y_pred, Y_batch.unsqueeze(1))
+        loss = criterion(model(x_batch), y_batch.unsqueeze(1))
+        acc = binary_accuracy(model.predict(x_batch), y_batch.unsqueeze(1))
 
         loss.backward()
         optimizer.step()
 
         epoch_loss += loss.item()
-        epoch_acc += acc.item()
+        epoch_acc += acc
 
-    return epoch_acc, epoch_loss
+    return epoch_loss / n_iters, epoch_acc / n_iters
 
 
 def evaluate(model, data_iterator, criterion):
@@ -365,7 +384,15 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    return
+    n_iters = 0
+    total_loss = 0
+    total_acc = 0
+    for x_batch, y_batch in data_iterator:
+        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
+        n_iters += 1
+        total_loss += criterion(model(x_batch), y_batch.unsqueeze(1))
+        total_acc += binary_accuracy(model.predict(x_batch), y_batch.unsqueeze(1))
+    return total_loss / n_iters, total_acc / n_iters
 
 
 def get_predictions_for_data(model, data_iter):
@@ -378,7 +405,12 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    return
+    total_pred = torch.Tensor().to(get_available_device())
+    for x_batch, y_batch in data_iter:
+        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
+        y_pred = model.predict(x_batch)
+        total_pred = torch.cat((total_pred, y_pred))
+    return total_pred.cpu().detach().numpy()
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -391,23 +423,60 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
+
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
-    model.train()
+
+    train_losses = []
+    train_accs = []
+    valid_losses = []
+    valid_accs = []
     for epoch in range(n_epochs):
-        acc, loss = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
-        print(f'Epoch {epoch + 0:03}: | Loss: {loss:.5f} | Acc: {acc:.3f}')
-    return
+        model.train()
+        train_loss, train_acc = train_epoch(model, data_manager.get_torch_iterator(), optimizer, criterion)
+        valid_loss, valid_acc = evaluate(model, data_manager.get_torch_iterator(VAL), criterion)
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
+        valid_losses.append(valid_loss)
+        valid_accs.append(valid_acc)
+        print(f'Epoch {epoch + 0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}')
+        print(f'Epoch {epoch + 0:03}: | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
+    return train_losses, train_accs, valid_losses, valid_accs
+
+
+def get_test_acc(model, data_manager, subset=None):
+    test_pred = get_predictions_for_data(model, data_manager.get_torch_iterator(TEST))
+    test_labels = data_manager.get_labels(TEST)
+    if subset == 'NEGATED':
+        negated_subset_indices = data_loader.get_negated_polarity_examples(data_manager.sentences[TEST])
+        test_pred = np.array((itemgetter(*negated_subset_indices)(test_pred)))
+        test_labels = np.array((itemgetter(*negated_subset_indices)(test_labels)))
+    elif subset == 'RARE':
+        rare_subset_indices = data_loader.get_rare_words_examples(data_manager.sentences[TEST], data_manager.sentiment_dataset)
+        test_pred = np.array((itemgetter(*rare_subset_indices)(test_pred)))
+        test_labels = np.array((itemgetter(*rare_subset_indices)(test_labels)))
+    test_acc = binary_accuracy(test_pred.flatten(), test_labels.flatten())
+    return test_acc
+
+
+def print_test_accuracies(model, data_manager):
+    test_acc = get_test_acc(model, data_manager)
+    negated_acc = get_test_acc(model, data_manager, 'NEGATED')
+    rare_acc = get_test_acc(model, data_manager, 'RARE')
+    print('test accuracy: {}\nnegated accuracy: {}\nrare accuracy: {}'.format(test_acc, negated_acc, rare_acc))
 
 
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    lr = DEFAULT_LEARNING_RATE
-    n_epochs = DEFAULT_N_EPOCHS
-    batch_size = DEFAULT_BATCH_SIZE
-    weight_decay = DEFAULT_WEIGHT_DECAY
+    print('training log linear with 1-hot')
+    data_manager = DataManager(batch_size=64)
+    model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
+    train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
+    plot(train_losses, train_accs, valid_losses, valid_accs, 'Log Linear: 1-hot')
+    print_test_accuracies(model, data_manager)
+    return
 
 
 def train_log_linear_with_w2v():
@@ -415,6 +484,12 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
+    print('training log linear with w2v')
+    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=300)
+    model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
+    train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
+    plot(train_losses, train_accs, valid_losses, valid_accs,  'Log Linear: w2v')
+    print_test_accuracies(model, data_manager)
     return
 
 
@@ -422,10 +497,35 @@ def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
+    print('training LSTM with w2v')
+    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=300)
+    model = LSTM(embedding_dim=data_manager.get_input_shape()[-1], hidden_dim=100, n_layers=1, dropout=0.5).to(get_available_device())
+    train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 4, 0.001, weight_decay=0.0001)
+    plot(train_losses, train_accs, valid_losses, valid_accs, 'LSTM')
+    print_test_accuracies(model, data_manager)
     return
 
 
+def plot(train_losses, train_accs, valid_losses, valid_accs, title):
+    f, (ax1, ax2) = plt.subplots(1, 2)
+    x = [i for i in range(len(train_losses))]
+    ax1.plot(x, train_losses, label='Train')
+    ax1.plot(x, valid_losses, label='Validation')
+    ax1.set_title('Loss')
+    ax1.legend()
+    ax1.set_ylim([0,1])
+
+    ax2.plot(x, train_accs, label='Train')
+    ax2.plot(x, valid_accs, label='Validation')
+    ax2.set_title('Accuracy')
+    ax2.legend()
+    ax2.set_ylim([0,1])
+
+    f.suptitle(title)
+
+    plt.show()
+
 if __name__ == '__main__':
     train_log_linear_with_one_hot()
-    # train_log_linear_with_w2v()
-    # train_lstm_with_w2v()
+    train_log_linear_with_w2v()
+    train_lstm_with_w2v()

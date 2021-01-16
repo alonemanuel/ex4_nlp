@@ -8,8 +8,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 import data_loader
+
+DEFAULT_LOGLINEAR_WEIGHT_DECAY = 0.0001
+
+DEFAULT_LOGLINEAR_LR = 0.01
+
+DEFAULT_LOGLINEAR_N_EPOCHS = 20
 
 DEFAULT_LSTM_DROPOUT = 0.5
 
@@ -330,7 +337,8 @@ class LSTM(nn.Module):
         return out
 
     def predict(self, text):
-        return torch.round(self.forward(text))
+        return (self.forward(text) >= 0.5).float()
+        # return torch.round(self.forward(text)).float()
 
 
 class LogLinear(nn.Module):
@@ -346,7 +354,9 @@ class LogLinear(nn.Module):
         return self.linear(x.float())
 
     def predict(self, x):
-        return torch.round(self.forward(x))
+        return (self.forward(x) >= 0.5).float()
+
+        # return torch.round(self.forward(x)).float()
 
 
 # ------------------------- training functions -------------
@@ -459,8 +469,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         train_accs.append(train_acc)
         valid_losses.append(valid_loss)
         valid_accs.append(valid_acc)
-        print(f'Epoch {epoch + 0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}', end='')
-        print(f' | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
+        print(f'\nEpoch {epoch + 0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}',end='')
+        print(f' | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}',end='')
     return train_losses, train_accs, valid_losses, valid_accs
 
 
@@ -492,7 +502,7 @@ def train_log_linear_with_one_hot():
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
     print('training log linear with 1-hot')
-    data_manager = DataManager(batch_size=64)
+    data_manager = DataManager(batch_size=DEFAULT_BATCH_SIZE)
     model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
     train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
     plot(train_losses, train_accs, valid_losses, valid_accs, 'Log Linear: 1-hot')
@@ -506,9 +516,15 @@ def train_log_linear_with_w2v():
     representation.
     """
     print('training log linear with w2v')
-    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=300)
+    data_manager = DataManager(data_type=W2V_AVERAGE,
+                               batch_size=DEFAULT_BATCH_SIZE,
+                               embedding_dim=W2V_EMBEDDING_DIM)
     model = LogLinear(data_manager.get_input_shape()[-1]).to(get_available_device())
-    train_losses, train_accs, valid_losses, valid_accs = train_model(model, data_manager, 20, 0.01, weight_decay=0.0001)
+    train_losses, train_accs, valid_losses, valid_accs = train_model(model=model,
+                                                                     data_manager=data_manager,
+                                                                     n_epochs=DEFAULT_LOGLINEAR_N_EPOCHS,
+                                                                     lr=DEFAULT_LOGLINEAR_LR,
+                                                                     weight_decay=DEFAULT_LOGLINEAR_WEIGHT_DECAY)
     plot(train_losses, train_accs, valid_losses, valid_accs, 'Log Linear: w2v')
     print_test_accuracies(model, data_manager)
     return
@@ -557,7 +573,6 @@ def plot(train_losses, train_accs, valid_losses, valid_accs, title):
 
 
 if __name__ == '__main__':
-    print('1844')
     train_log_linear_with_one_hot()
     train_log_linear_with_w2v()
     train_lstm_with_w2v()

@@ -330,7 +330,7 @@ class LSTM(nn.Module):
         return out
 
     def predict(self, text):
-        return np.round(self.forward(text))
+        return torch.round(self.forward(text))
 
 
 class LogLinear(nn.Module):
@@ -346,7 +346,7 @@ class LogLinear(nn.Module):
         return self.linear(x.float())
 
     def predict(self, x):
-        return np.round(self.forward(x))
+        return torch.round(self.forward(x))
 
 
 # ------------------------- training functions -------------

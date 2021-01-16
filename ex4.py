@@ -375,9 +375,11 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     n_iters = 0
     epoch_loss = 0
     epoch_acc = 0
+    device = get_available_device()
+    criterion = criterion.to(device)
     for x_batch, y_batch in data_iterator:
         n_iters += 1
-        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         optimizer.zero_grad()
 
         loss = criterion(model(x_batch), y_batch.unsqueeze(1))
@@ -403,8 +405,10 @@ def evaluate(model, data_iterator, criterion):
     n_iters = 0
     total_loss = 0
     total_acc = 0
+    device = get_available_device()
+    criterion = criterion.to(device)
     for x_batch, y_batch in data_iterator:
-        x_batch, y_batch = x_batch.to(get_available_device()), y_batch.to(get_available_device())
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         n_iters += 1
         total_loss += criterion(model(x_batch), y_batch.unsqueeze(1))
         total_acc += binary_accuracy(model.predict(x_batch), y_batch.unsqueeze(1))
@@ -455,8 +459,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         train_accs.append(train_acc)
         valid_losses.append(valid_loss)
         valid_accs.append(valid_acc)
-        print(f'Epoch {epoch + 0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}')
-        print(f'Epoch {epoch + 0:03}: | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
+        print(f'Epoch {epoch + 0:03}: | Train Loss: {train_loss:.5f} | Train Acc: {train_acc:.3f}', end='')
+        print(f' | Valid Loss: {valid_loss:.5f} | Valid Acc: {valid_acc:.3f}')
     return train_losses, train_accs, valid_losses, valid_accs
 
 
@@ -553,6 +557,7 @@ def plot(train_losses, train_accs, valid_losses, valid_accs, title):
 
 
 if __name__ == '__main__':
+    print('1844')
     train_log_linear_with_one_hot()
     train_log_linear_with_w2v()
     train_lstm_with_w2v()
